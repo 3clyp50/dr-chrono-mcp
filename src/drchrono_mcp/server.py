@@ -17,7 +17,7 @@ import sys
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
+from mcp.server.fastmcp.server import TransportSecuritySettings
 
 # Load environment variables
 load_dotenv()
@@ -38,8 +38,9 @@ client_id = get_env_or_error("DRCHRONO_CLIENT_ID")
 client_secret = get_env_or_error("DRCHRONO_CLIENT_SECRET")
 redirect_uri = os.getenv("DRCHRONO_REDIRECT_URI", "http://localhost:8765/callback")
 
-# Create FastMCP server with relaxed security for Docker access
-# Disable DNS rebinding protection to allow connections from Docker containers
+# Create FastMCP server with DNS rebinding protection disabled for local SSE access.
+# This is safe for a localhost development tool - the protection is mainly needed
+# for servers exposed to the internet.
 mcp = FastMCP(
     "drchrono-mcp",
     transport_security=TransportSecuritySettings(
@@ -144,7 +145,13 @@ async def drchrono_auth_status() -> dict:
 
 @mcp.tool()
 async def drchrono_start_auth() -> dict:
-    """Start DrChrono OAuth flow - opens browser for authorization."""
+    """Start DrChrono OAuth flow - opens browser for authorization.
+
+    After authorizing in browser, you'll be redirected to a URL like:
+    http://localhost:8765/callback?code=XXXXX
+
+    Copy the 'code' value and use drchrono_exchange_code to complete auth.
+    """
     oauth = get_oauth()
     if oauth.is_authenticated:
         return {"message": "Already authenticated", "authenticated": True}
@@ -154,9 +161,54 @@ async def drchrono_start_auth() -> dict:
 
     webbrowser.open(auth_url)
     return {
-        "message": "Browser opened for authorization. Complete the flow.",
+        "message": (
+            "Browser opened for authorization. After authorizing, "
+            "copy the 'code' parameter from the redirect URL and use "
+            "drchrono_exchange_code to complete authentication."
+        ),
         "auth_url": auth_url,
     }
+
+
+@mcp.tool()
+async def drchrono_exchange_code(code: str) -> dict:
+    """Exchange authorization code for access tokens.
+
+    Use this after drchrono_start_auth. When the browser redirects to
+    localhost:8765/callback?code=XXXXX, copy the code value and pass it here.
+
+    Args:
+        code: The authorization code from the callback URL
+    """
+    oauth = get_oauth()
+    if oauth.is_authenticated:
+        return {"message": "Already authenticated", "authenticated": True}
+
+    try:
+        tokens = await oauth.exchange_code(code)
+        return {
+            "authenticated": True,
+            "message": "Successfully authenticated with DrChrono API.",
+            "expires_at": tokens.expires_at.isoformat(),
+            "scopes": tokens.scope.split() if tokens.scope else [],
+        }
+    except Exception as e:
+        return {
+            "authenticated": False,
+            "error": str(e),
+            "message": (
+                "Failed to exchange code. The code may have expired "
+                "(they're only valid for a few minutes). Try drchrono_start_auth again."
+            ),
+        }
+
+
+@mcp.tool()
+async def drchrono_logout() -> dict:
+    """Clear stored DrChrono credentials and log out."""
+    oauth = get_oauth()
+    oauth.logout()
+    return {"message": "Logged out. Stored tokens have been deleted."}
 
 
 # ============================================
@@ -425,33 +477,286 @@ async def drchrono_search_patient_history(
     return {"patient_id": patient_id, "query": query, "results": results.get("content", [])}
 
 
+# ============================================
+# VISUALIZATION TOOLS (MCP-UI)
+# ============================================
+
+
+def _generate_lab_chart_html(labs: list, patient_name: str) -> str:
+    """Generate HTML with Chart.js for lab results visualization."""
+    # Group labs by test name
+    lab_groups: dict = {}
+    for lab in labs:
+        name = lab.get("name", lab.get("description", "Unknown"))
+        if name not in lab_groups:
+            lab_groups[name] = []
+        lab_groups[name].append({
+            "date": lab.get("date_created", lab.get("document_date", "")),
+            "value": lab.get("value", lab.get("result", "")),
+            "unit": lab.get("unit", ""),
+        })
+
+    # Build datasets for Chart.js
+    datasets_js = []
+    colors = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899"]
+    for i, (name, values) in enumerate(lab_groups.items()):
+        color = colors[i % len(colors)]
+        data_points = [
+            f'{{x: "{v["date"]}", y: {v["value"]}}}'
+            for v in values
+            if v["value"] and str(v["value"]).replace(".", "").replace("-", "").isdigit()
+        ]
+        if data_points:
+            datasets_js.append(f'''{{
+                label: "{name}",
+                data: [{", ".join(data_points)}],
+                borderColor: "{color}",
+                backgroundColor: "{color}33",
+                tension: 0.1
+            }}''')
+
+    return f'''<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        body {{ font-family: -apple-system, sans-serif; padding: 20px; background: #1a1a2e; color: #eee; }}
+        h2 {{ color: #3b82f6; margin-bottom: 20px; }}
+        .chart-container {{ background: #16213e; border-radius: 12px; padding: 20px; }}
+    </style>
+</head>
+<body>
+    <h2>Lab Results: {patient_name}</h2>
+    <div class="chart-container">
+        <canvas id="labChart"></canvas>
+    </div>
+    <script>
+        new Chart(document.getElementById('labChart'), {{
+            type: 'line',
+            data: {{ datasets: [{", ".join(datasets_js)}] }},
+            options: {{
+                responsive: true,
+                scales: {{
+                    x: {{ type: 'time', time: {{ unit: 'day' }}, grid: {{ color: '#333' }} }},
+                    y: {{ grid: {{ color: '#333' }} }}
+                }},
+                plugins: {{ legend: {{ labels: {{ color: '#eee' }} }} }}
+            }}
+        }});
+    </script>
+</body>
+</html>'''
+
+
+def _generate_patient_dashboard_html(context: dict) -> str:
+    """Generate HTML dashboard for patient clinical context."""
+    demo = context.get("demographics", {})
+    name = demo.get("name", "Unknown")
+    dob = demo.get("date_of_birth", "")
+    gender = demo.get("gender", "")
+
+    allergies = context.get("allergies", [])
+    meds = context.get("medications", [])
+    problems = context.get("problems", [])
+
+    allergy_items = "".join(
+        f'<li class="allergy">{a.get("reaction", a.get("description", "Unknown"))}</li>'
+        for a in (allergies if isinstance(allergies, list) else [])
+    ) or "<li>No known allergies</li>"
+
+    med_items = "".join(
+        f'<li>{m.get("name", "Unknown")} - {m.get("dose", "")} {m.get("frequency", "")}</li>'
+        for m in (meds if isinstance(meds, list) else [])
+    ) or "<li>No active medications</li>"
+
+    problem_items = "".join(
+        f'<li>{p.get("name", p.get("description", "Unknown"))}</li>'
+        for p in (problems if isinstance(problems, list) else [])
+    ) or "<li>No active problems</li>"
+
+    return f'''<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: -apple-system, sans-serif; padding: 20px; background: #1a1a2e; color: #eee; margin: 0; }}
+        .header {{ background: linear-gradient(135deg, #3b82f6, #8b5cf6); padding: 20px; border-radius: 12px; margin-bottom: 20px; }}
+        .header h1 {{ margin: 0; font-size: 24px; }}
+        .header p {{ margin: 5px 0 0; opacity: 0.9; }}
+        .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }}
+        .card {{ background: #16213e; border-radius: 12px; padding: 16px; }}
+        .card h3 {{ color: #3b82f6; margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }}
+        .card ul {{ margin: 0; padding-left: 20px; }}
+        .card li {{ margin: 8px 0; }}
+        .allergy {{ color: #ef4444; font-weight: 600; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{name}</h1>
+        <p>DOB: {dob} | Gender: {gender}</p>
+    </div>
+    <div class="grid">
+        <div class="card">
+            <h3>⚠️ Allergies</h3>
+            <ul>{allergy_items}</ul>
+        </div>
+        <div class="card">
+            <h3>💊 Medications</h3>
+            <ul>{med_items}</ul>
+        </div>
+        <div class="card">
+            <h3>📋 Active Problems</h3>
+            <ul>{problem_items}</ul>
+        </div>
+    </div>
+</body>
+</html>'''
+
+
+@mcp.tool()
+async def drchrono_visualize_labs(
+    patient_id: int,
+    since: str | None = None,
+) -> dict:
+    """Generate an interactive lab results chart for a patient.
+
+    Returns an MCP-UI resource with a Chart.js visualization of lab values over time.
+    Use this when the doctor wants to SEE lab trends visually.
+
+    The response contains a 'content' array with an MCP-UI resource that clients
+    supporting MCP-UI (like Agent Zero with MCP-UI) will render as an interactive chart.
+
+    Args:
+        patient_id: The patient's ID
+        since: Show results since this date (YYYY-MM-DD)
+    """
+    from mcp_ui import RawHtmlContent, CreateUIResourceOptions, create_ui_resource
+
+    client = get_rest_client()
+
+    # Fetch patient and labs in parallel
+    import asyncio
+
+    patient, labs = await asyncio.gather(
+        client.get_patient(patient_id),
+        client.get_lab_results(patient_id, since=since),
+    )
+
+    patient_name = f"{patient.get('first_name', '')} {patient.get('last_name', '')}"
+    lab_results = labs.get("results", [])
+
+    if not lab_results:
+        return {"message": f"No lab results found for patient {patient_id}"}
+
+    html = _generate_lab_chart_html(lab_results, patient_name)
+
+    resource = create_ui_resource(CreateUIResourceOptions(
+        uri=f"ui://drchrono/labs/{patient_id}",
+        content=RawHtmlContent(type="rawHtml", htmlString=html),
+        encoding="text",
+    ))
+
+    return {
+        "content": [resource],
+        "metadata": {
+            "patient_id": patient_id,
+            "patient_name": patient_name,
+            "lab_count": len(lab_results),
+        },
+    }
+
+
+@mcp.tool()
+async def drchrono_visualize_patient_dashboard(
+    patient_id: int,
+) -> dict:
+    """Generate a visual patient dashboard with allergies, medications, and problems.
+
+    Returns an MCP-UI resource with a clinical summary card.
+    Use this when the doctor wants a quick VISUAL overview of the patient.
+
+    The response contains a 'content' array with an MCP-UI resource that clients
+    supporting MCP-UI will render as an interactive dashboard.
+
+    Args:
+        patient_id: The patient's ID
+    """
+    from mcp_ui import RawHtmlContent, CreateUIResourceOptions, create_ui_resource
+
+    # Get clinical context (already fetches all data in parallel)
+    context = await drchrono_get_clinical_context(patient_id=patient_id)
+
+    if "error" in context:
+        return context
+
+    html = _generate_patient_dashboard_html(context)
+
+    resource = create_ui_resource(CreateUIResourceOptions(
+        uri=f"ui://drchrono/dashboard/{patient_id}",
+        content=RawHtmlContent(type="rawHtml", htmlString=html),
+        encoding="text",
+    ))
+
+    return {
+        "content": [resource],
+        "metadata": {
+            "patient_id": patient_id,
+            "patient_name": context.get("demographics", {}).get("name", ""),
+        },
+    }
+
+
 def main():
     """Entry point for the MCP server."""
     parser = argparse.ArgumentParser(description="DrChrono MCP Server")
     parser.add_argument(
+        "--http",
+        action="store_true",
+        help="Run as HTTP server with Streamable HTTP transport (recommended for remote clients)",
+    )
+    parser.add_argument(
         "--sse",
         action="store_true",
-        help="Run as HTTP server with SSE transport (for remote clients)",
+        help="Run as HTTP server with SSE transport (deprecated, use --http instead)",
     )
     parser.add_argument(
         "--host",
-        default="0.0.0.0",
-        help="Host to bind to (default: 0.0.0.0)",
+        default="127.0.0.1",
+        help="Host to bind to (default: 127.0.0.1)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=8080,
-        help="Port to listen on (default: 8080)",
+        default=8000,
+        help="Port to listen on (default: 8000)",
+    )
+    parser.add_argument(
+        "--path",
+        default="/mcp",
+        help="HTTP endpoint path (default: /mcp)",
     )
     args = parser.parse_args()
 
-    if args.sse:
+    if args.http:
+        # Streamable HTTP transport (recommended)
         import uvicorn
 
+        print(f"Starting DrChrono MCP server with Streamable HTTP transport")
+        print(f"Endpoint: http://{args.host}:{args.port}/mcp")
+        uvicorn.run(
+            mcp.streamable_http_app(),
+            host=args.host,
+            port=args.port,
+            log_level="info",
+        )
+    elif args.sse:
+        # SSE transport (deprecated but kept for backward compatibility)
+        import uvicorn
+
+        print(f"WARNING: SSE transport is deprecated. Use --http for Streamable HTTP.")
         print(f"Starting DrChrono MCP server on http://{args.host}:{args.port}")
         print(f"SSE endpoint: http://{args.host}:{args.port}/sse")
-
         uvicorn.run(
             mcp.sse_app(),
             host=args.host,
@@ -459,6 +764,7 @@ def main():
             log_level="info",
         )
     else:
+        # stdio transport (default for local MCP clients like Claude Desktop)
         mcp.run()
 
 
