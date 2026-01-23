@@ -17,6 +17,7 @@ import sys
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 # Load environment variables
 load_dotenv()
@@ -37,8 +38,14 @@ client_id = get_env_or_error("DRCHRONO_CLIENT_ID")
 client_secret = get_env_or_error("DRCHRONO_CLIENT_SECRET")
 redirect_uri = os.getenv("DRCHRONO_REDIRECT_URI", "http://localhost:8765/callback")
 
-# Create FastMCP server
-mcp = FastMCP("drchrono-mcp")
+# Create FastMCP server with relaxed security for Docker access
+# Disable DNS rebinding protection to allow connections from Docker containers
+mcp = FastMCP(
+    "drchrono-mcp",
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=False,
+    ),
+)
 
 # Lazy-initialized clients (initialized on first use)
 _oauth = None
@@ -444,6 +451,7 @@ def main():
 
         print(f"Starting DrChrono MCP server on http://{args.host}:{args.port}")
         print(f"SSE endpoint: http://{args.host}:{args.port}/sse")
+
         uvicorn.run(
             mcp.sse_app(),
             host=args.host,
