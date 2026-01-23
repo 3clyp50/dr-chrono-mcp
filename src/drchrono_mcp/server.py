@@ -3,8 +3,15 @@
 This MCP server provides tools for interacting with the DrChrono healthcare API,
 including patient management, appointments, clinical notes, billing, FHIR access,
 and persistent clinical memory via SimpleMem.
+
+Supports two transport modes:
+- stdio (default): For local MCP clients that spawn the server
+- sse: HTTP server for remote clients (e.g., Docker containers)
+
+Run with SSE: drchrono-mcp --sse --port 8080
 """
 
+import argparse
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -117,8 +124,8 @@ async def create_server():
             await memory_client.close()
 
 
-async def run_server():
-    """Run the MCP server."""
+async def run_stdio_server():
+    """Run the MCP server with stdio transport."""
     async with create_server() as server:
         async with stdio_server() as (read_stream, write_stream):
             await server.run(
@@ -128,11 +135,80 @@ async def run_server():
             )
 
 
+async def run_sse_server(host: str, port: int):
+    """Run the MCP server with SSE transport over HTTP.
+
+    Args:
+        host: Host to bind to (0.0.0.0 for all interfaces)
+        port: Port to listen on
+    """
+    import uvicorn
+    from mcp.server.sse import SseServerTransport
+    from starlette.applications import Starlette
+    from starlette.routing import Route
+
+    # Create SSE transport
+    sse = SseServerTransport("/messages")
+
+    async def handle_sse(request):
+        async with create_server() as server:
+            async with sse.connect_sse(
+                request.scope, request.receive, request._send
+            ) as streams:
+                await server.run(
+                    streams[0],
+                    streams[1],
+                    server.create_initialization_options(),
+                )
+
+    async def handle_messages(request):
+        await sse.handle_post_message(request.scope, request.receive, request._send)
+
+    # Create Starlette app
+    app = Starlette(
+        debug=True,
+        routes=[
+            Route("/sse", endpoint=handle_sse),
+            Route("/messages", endpoint=handle_messages, methods=["POST"]),
+        ],
+    )
+
+    print(f"Starting DrChrono MCP server on http://{host}:{port}")
+    print(f"SSE endpoint: http://{host}:{port}/sse")
+    print(f"Messages endpoint: http://{host}:{port}/messages")
+
+    config = uvicorn.Config(app, host=host, port=port, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
 def main():
     """Entry point for the MCP server."""
     import asyncio
 
-    asyncio.run(run_server())
+    parser = argparse.ArgumentParser(description="DrChrono MCP Server")
+    parser.add_argument(
+        "--sse",
+        action="store_true",
+        help="Run as HTTP server with SSE transport (for remote clients)",
+    )
+    parser.add_argument(
+        "--host",
+        default="0.0.0.0",
+        help="Host to bind to (default: 0.0.0.0)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="Port to listen on (default: 8080)",
+    )
+    args = parser.parse_args()
+
+    if args.sse:
+        asyncio.run(run_sse_server(args.host, args.port))
+    else:
+        asyncio.run(run_stdio_server())
 
 
 if __name__ == "__main__":
