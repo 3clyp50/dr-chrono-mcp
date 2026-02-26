@@ -140,11 +140,13 @@ class ClinicalChartBuilder:
         for v in vitals:
             date = v.get("date", "")[:10]
             if v.get("systolic") and v.get("diastolic"):
-                bp_data.append({
-                    "date": date,
-                    "systolic": v["systolic"],
-                    "diastolic": v["diastolic"],
-                })
+                bp_data.append(
+                    {
+                        "date": date,
+                        "systolic": v["systolic"],
+                        "diastolic": v["diastolic"],
+                    }
+                )
             if v.get("heart_rate"):
                 hr_data.append({"date": date, "value": v["heart_rate"]})
             if v.get("temperature"):
@@ -170,13 +172,9 @@ class ClinicalChartBuilder:
 
         # Weight Trend
         if weight_data:
-            charts.append(
-                cls.build_lab_trend_chart("Weight (lbs)", weight_data)
-            )
+            charts.append(cls.build_lab_trend_chart("Weight (lbs)", weight_data))
 
-        chart_items = "".join(
-            f'<div class="chart-container">{chart}</div>' for chart in charts
-        )
+        chart_items = "".join(f'<div class="chart-container">{chart}</div>' for chart in charts)
         return f"""
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
                     gap: 1rem;">
@@ -288,7 +286,8 @@ class ClinicalChartBuilder:
                     cls.CHART_COLORS["purple"],
                     cls.CHART_COLORS["warning"],
                     cls.CHART_COLORS["gray"],
-                ] * (len(medications) // 5 + 1),
+                ]
+                * (len(medications) // 5 + 1),
                 "borderRadius": 4,
             }
         ]

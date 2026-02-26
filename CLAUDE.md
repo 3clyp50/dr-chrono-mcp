@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DrChrono MCP Server - A Python MCP (Model Context Protocol) server for the DrChrono healthcare API. Provides tools for patient management, appointments, clinical notes, billing, FHIR R4 interoperability, and persistent clinical memory via SimpleMem.
+DrChrono MCP Server - A Python MCP (Model Context Protocol) server for the DrChrono healthcare API. Provides tools for patient management, appointments, clinical notes, billing, FHIR R4 interoperability, persistent clinical memory via SimpleMem, and MCP-UI powered clinical visualizations.
 
 ## Commands
 
@@ -22,9 +22,6 @@ uv run drchrono-mcp --http
 # Run with custom host/port
 uv run drchrono-mcp --http --host 0.0.0.0 --port 8080
 
-# Run server (SSE transport - deprecated, use --http instead)
-uv run drchrono-mcp --sse --port 8080
-
 # Lint
 uv run ruff check src/
 
@@ -36,46 +33,54 @@ uv run ruff format src/
 
 ```
 server.py (FastMCP entry point)
-    ├── Lazy-initialized singletons:
-    │   ├── OAuthManager → handles OAuth 2.0 flow, token refresh
-    │   ├── DrChronoClient → REST API with rate limiting
-    │   ├── FHIRClient → FHIR R4 via ConnectEHR (optional)
-    │   └── SimpleMemClient → persistent clinical memory (optional)
-    │
-    └── MCP Tools (registered via @mcp.tool() decorator)
+ ├── Lazy-initialized singletons:
+ │ ├── OAuthManager → handles OAuth 2.0 flow, token refresh
+ │ ├── DrChronoClient → REST API with rate limiting
+ │ ├── FHIRClient → FHIR R4 via ConnectEHR (optional)
+ │ └── SimpleMemClient → persistent clinical memory (optional)
+ │
+ └── MCP Tools (registered via @mcp.tool() decorator)
+      ├── Auth tools (status, start, exchange, logout)
+      ├── Clinical tools (patients, appointments, meds, allergies, problems, labs, notes)
+      ├── Clinical context (unified patient summary)
+      ├── Memory tools (store/search encounter history)
+      └── Visualization tools (MCP-UI powered HTML dashboards)
 ```
 
 ### Key Components
 
-- **`server.py`**: All MCP tools are defined inline using FastMCP decorators. Tools call lazy-initialized clients.
-- **`auth/oauth.py`**: OAuth 2.0 Authorization Code flow with local callback server. Handles token exchange and refresh.
+- **`server.py`**: All MCP tools defined inline using FastMCP decorators. No web framework, no routes.
+- **`auth/oauth.py`**: OAuth 2.0 Authorization Code flow with local callback server.
 - **`auth/token_store.py`**: Secure token persistence to `~/.drchrono/tokens.json` (mode 600).
-- **`clients/rest_client.py`**: Async HTTP client with automatic 429 rate limit handling (exponential backoff) and bulk API support.
-- **`clients/fhir_client.py`**: FHIR R4 client for ConnectEHR integration. Requires separate FHIR credentials.
-- **`models/types.py`**: Pydantic models and Literal types (prevents LLM hallucination on constrained parameters).
+- **`clients/rest_client.py`**: Async HTTP client with automatic 429 rate limit handling.
+- **`clients/fhir_client.py`**: FHIR R4 client for ConnectEHR integration (optional).
+- **`ui/theme/`**: Design tokens (zinc palette, teal accent), base CSS, SVG icons.
+- **`ui/components/`**: Reusable clinical UI components (PatientHeader, AllergyList, MedicationList, LabPanel, ClinicalCard, etc.)
+- **`ui/clinical_charts.py`**: Chart.js visualization builder for lab trends.
+- **`ui/clinical_display.py`**: HTML assembly for clinical displays.
 
 ### Transport Modes
 
-- **stdio** (default): For MCP clients that spawn the server as a subprocess (e.g., Claude Desktop)
-- **streamable-http** (`--http`): Recommended HTTP transport for remote clients. Uses `mcp.streamable_http_app()` served by uvicorn. Endpoint at `/mcp`.
-- **sse** (`--sse`): Deprecated HTTP transport. Uses `mcp.sse_app()`. Endpoint at `/sse`.
+- **stdio** (default): For MCP clients that spawn the server as a subprocess
+- **streamable-http** (`--http`): HTTP transport for remote clients. Served by uvicorn at `/mcp`.
+
+### Design System
+
+The UI uses a professional, restrained clinical aesthetic:
+- Zinc-based neutral palette (no purple, pink, or decorative gradients)
+- Single teal accent (#14b8a6 dark, #0d9488 light) for interactive elements
+- Clinical severity colors used only where medically meaningful (red=critical, amber=warning, green=normal)
+- Inter for body text, JetBrains Mono for clinical values
+- No glows, no decorative animations, no serif display fonts
 
 ### MCP-UI Visualization Tools
 
-The server includes MCP-UI powered visualization tools that return interactive HTML content:
+Tools return `{ "content": [resource] }` where resource is an MCP-UI HTML resource:
 
 - **`drchrono_visualize_labs`**: Chart.js line chart of lab results over time
-- **`drchrono_visualize_patient_dashboard`**: Clinical summary card with allergies, medications, problems
+- **`drchrono_visualize_patient_dashboard`**: Clinical summary with allergies, medications, problems
 
-These tools return `{ "content": [resource] }` format where `resource` is an MCP-UI resource object. Clients supporting MCP-UI (like Agent Zero with the MCP-UI renderer) will display interactive visualizations.
-
-### DrChrono API Details
-
-- REST Base: `https://app.drchrono.com/api/`
-- OAuth Authorize: `https://app.drchrono.com/o/authorize/`
-- OAuth Token: `https://app.drchrono.com/o/token/`
-- Bulk APIs: POST to `/{resource}_list` to start async job, poll with `uuid` parameter
-- Max page size: 250 (standard), 1000 (bulk APIs)
+These render as interactive HTML in any MCP-UI compatible client.
 
 ## Environment Variables
 

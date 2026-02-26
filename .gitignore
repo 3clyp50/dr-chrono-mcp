@@ -28,7 +28,7 @@ wheels/
 .venv/
 venv/
 ENV/
-
+.voov/
 # IDE
 .idea/
 .vscode/
@@ -48,3 +48,5 @@ tokens.json
 # uv
 .uv/
 uv.lock
+
+scratchpad.txt

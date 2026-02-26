@@ -1,0 +1,6 @@
+[2026-01-25T23:05:51.814385] INFO: stop hook starting (Python 3.12.12)
+[2026-01-25T23:05:51.814492] DEBUG: Skipping stdin read during shutdown
+[2026-01-25T23:05:51.814536] INFO: Received input with keys: []
+[2026-01-25T23:05:51.814573] INFO: === STOP HOOK: Shutdown detected - skipping all operations ===
+[2026-01-25T23:05:51.814608] INFO: Returning output with keys: ['decision']
+[2026-01-25T23:05:51.814667] INFO: stop hook completed successfully

@@ -1,0 +1,5 @@
+{"pid": 31479, "session_id": "session-40168d7e", "launch_dir": "/Users/lazy/Projects/dr-chrono-mcp", "argv": ["/Users/lazy/.cache/uv/archive-v0/R6iHsFsDncU-EWUJfJyNT/bin/amplihack", "claude"], "start_time": 1769399287.160531, "is_auto_mode": false, "is_nested": false, "parent_session_id": null, "status": "active", "end_time": null}
+{"pid": 56043, "session_id": "session-c260e7d5", "launch_dir": "/Users/lazy/Projects/dr-chrono-mcp", "argv": ["/Users/lazy/Projects/dr-chrono-mcp/.voov/bin/amplihack", "claude"], "start_time": 1769400328.541328, "is_auto_mode": false, "is_nested": true, "parent_session_id": "session-40168d7e", "status": "active", "end_time": null}
+{"session_id": "session-c260e7d5", "status": "completed", "end_time": 1769400351.8024}
+{"session_id": "session-c260e7d5", "status": "completed", "end_time": 1769400351.802952}
+{"pid": 56648, "session_id": "session-d3801063", "launch_dir": "/Users/lazy/Projects/dr-chrono-mcp", "argv": ["/Users/lazy/Projects/dr-chrono-mcp/.voov/bin/amplihack", "claude"], "start_time": 1769400358.466227, "is_auto_mode": false, "is_nested": true, "parent_session_id": "session-40168d7e", "status": "active", "end_time": null}

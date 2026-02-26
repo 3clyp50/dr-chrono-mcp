@@ -478,136 +478,261 @@ async def drchrono_search_patient_history(
 
 
 # ============================================
+# BILLING & ELIGIBILITY TOOLS
+# ============================================
+
+
+@mcp.tool()
+async def drchrono_check_eligibility(
+    patient_id: int,
+    insurance_type: str = "primary",
+) -> dict:
+    """Check insurance eligibility for a patient.
+
+    Verifies patient's insurance coverage status with the payer.
+    Returns the most recent eligibility check result.
+
+    Args:
+        patient_id: Patient ID (required)
+        insurance_type: Which insurance to check - "primary", "secondary", or "tertiary"
+
+    Returns:
+        Eligibility status and coverage details
+    """
+    client = get_rest_client()
+    results = await client.check_eligibility(patient_id, insurance_type)
+
+    if not results.get("results"):
+        return {
+            "patient_id": patient_id,
+            "insurance_type": insurance_type,
+            "has_eligibility": False,
+            "message": f"No eligibility check found for {insurance_type} insurance",
+        }
+
+    # Get most recent eligibility check
+    latest = results["results"][0]
+
+    return {
+        "patient_id": patient_id,
+        "insurance_type": insurance_type,
+        "has_eligibility": True,
+        "eligibility_id": latest.get("id"),
+        "status": latest.get("status"),
+        "payer_name": latest.get("payer_name"),
+        "subscriber_id": latest.get("subscriber_id"),
+        "group_number": latest.get("group_number"),
+        "coverage_active": latest.get("coverage_active"),
+        "copay": latest.get("copay"),
+        "deductible": latest.get("deductible"),
+        "deductible_remaining": latest.get("deductible_remaining"),
+        "check_date": latest.get("check_date"),
+    }
+
+
+@mcp.tool()
+async def drchrono_get_billing_summary(
+    patient_id: int,
+    since: str | None = None,
+    limit: int = 50,
+) -> dict:
+    """Get billing summary for a patient.
+
+    Includes line items (charges) and recent transactions (payments).
+    Calculates outstanding balance.
+
+    Args:
+        patient_id: Patient ID (required)
+        since: Only include items since this date (YYYY-MM-DD)
+        limit: Maximum items per category (default 50)
+
+    Returns:
+        Billing summary with charges, payments, and balance
+    """
+    import asyncio
+
+    client = get_rest_client()
+    line_items, transactions = await asyncio.gather(
+        client.get_line_items(patient_id=patient_id, since=since, limit=limit),
+        client.get_transactions(
+            since=since or "2020-01-01", patient_id=patient_id, limit=limit
+        ),
+    )
+
+    total_charges = sum(
+        float(item.get("price", 0) or 0) * int(item.get("units", 1) or 1)
+        for item in line_items.get("results", [])
+    )
+    total_payments = sum(
+        float(t.get("amount", 0) or 0)
+        for t in transactions.get("results", [])
+        if t.get("type") == "payment"
+    )
+    total_adjustments = sum(
+        float(t.get("amount", 0) or 0)
+        for t in transactions.get("results", [])
+        if t.get("type") == "adjustment"
+    )
+
+    balance = total_charges - total_payments - abs(total_adjustments)
+
+    return {
+        "patient_id": patient_id,
+        "total_charges": round(total_charges, 2),
+        "total_payments": round(total_payments, 2),
+        "total_adjustments": round(total_adjustments, 2),
+        "balance": round(balance, 2),
+        "line_items_count": len(line_items.get("results", [])),
+        "transactions_count": len(transactions.get("results", [])),
+    }
+
+
+# ============================================
 # VISUALIZATION TOOLS (MCP-UI)
 # ============================================
 
 
-def _generate_lab_chart_html(labs: list, patient_name: str) -> str:
-    """Generate HTML with Chart.js for lab results visualization."""
-    # Group labs by test name
-    lab_groups: dict = {}
-    for lab in labs:
-        name = lab.get("name", lab.get("description", "Unknown"))
-        if name not in lab_groups:
-            lab_groups[name] = []
-        lab_groups[name].append({
-            "date": lab.get("date_created", lab.get("document_date", "")),
-            "value": lab.get("value", lab.get("result", "")),
-            "unit": lab.get("unit", ""),
-        })
+def _generate_lab_chart_html(labs: list, patient_name: str, patient_data: dict) -> str:
+    """Generate HTML with Chart.js for lab results visualization.
 
-    # Build datasets for Chart.js
-    datasets_js = []
-    colors = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899"]
-    for i, (name, values) in enumerate(lab_groups.items()):
-        color = colors[i % len(colors)]
-        data_points = [
-            f'{{x: "{v["date"]}", y: {v["value"]}}}'
-            for v in values
-            if v["value"] and str(v["value"]).replace(".", "").replace("-", "").isdigit()
-        ]
-        if data_points:
-            datasets_js.append(f'''{{
-                label: "{name}",
-                data: [{", ".join(data_points)}],
-                borderColor: "{color}",
-                backgroundColor: "{color}33",
-                tension: 0.1
-            }}''')
+    Uses the new themed UI component library for consistent styling.
+    """
+    from drchrono_mcp.ui.components import LabPanel, PatientHeader
+    from drchrono_mcp.ui.theme import generate_full_stylesheet
+
+    # Build patient header
+    header = PatientHeader(
+        first_name=patient_data.get("first_name", ""),
+        last_name=patient_data.get("last_name", ""),
+        date_of_birth=patient_data.get("date_of_birth"),
+        gender=patient_data.get("gender"),
+        patient_id=patient_data.get("id"),
+    )
+
+    # Build lab panel with chart
+    lab_panel = LabPanel(
+        lab_results=labs,
+        show_chart=True,
+        title="Lab Results",
+    )
+
+    stylesheet = generate_full_stylesheet()
 
     return f'''<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-    <style>
-        body {{ font-family: -apple-system, sans-serif; padding: 20px; background: #1a1a2e; color: #eee; }}
-        h2 {{ color: #3b82f6; margin-bottom: 20px; }}
-        .chart-container {{ background: #16213e; border-radius: 12px; padding: 20px; }}
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab Results: {patient_name}</title>
+    <style>{stylesheet}</style>
 </head>
 <body>
-    <h2>Lab Results: {patient_name}</h2>
-    <div class="chart-container">
-        <canvas id="labChart"></canvas>
+    <div style="max-width: 900px; margin: 0 auto; padding: var(--space-6);">
+        {header.build()}
+        <div style="margin-top: var(--space-6);">
+            {lab_panel.build()}
+        </div>
     </div>
-    <script>
-        new Chart(document.getElementById('labChart'), {{
-            type: 'line',
-            data: {{ datasets: [{", ".join(datasets_js)}] }},
-            options: {{
-                responsive: true,
-                scales: {{
-                    x: {{ type: 'time', time: {{ unit: 'day' }}, grid: {{ color: '#333' }} }},
-                    y: {{ grid: {{ color: '#333' }} }}
-                }},
-                plugins: {{ legend: {{ labels: {{ color: '#eee' }} }} }}
-            }}
-        }});
-    </script>
 </body>
 </html>'''
 
 
-def _generate_patient_dashboard_html(context: dict) -> str:
-    """Generate HTML dashboard for patient clinical context."""
+def _generate_patient_dashboard_html(context: dict, patient_data: dict) -> str:
+    """Generate HTML dashboard for patient clinical context.
+
+    Uses the new themed UI component library for consistent styling.
+    """
+    from drchrono_mcp.ui.components import (
+        AllergyList,
+        ClinicalCard,
+        LabPanel,
+        MedicationList,
+        PatientHeader,
+    )
+    from drchrono_mcp.ui.theme import generate_full_stylesheet
+
+    # Build patient header
     demo = context.get("demographics", {})
-    name = demo.get("name", "Unknown")
-    dob = demo.get("date_of_birth", "")
-    gender = demo.get("gender", "")
+    demo_name = demo.get("name", "")
+    demo_parts = demo_name.split() if demo_name else []
+    first = patient_data.get("first_name", demo_parts[0] if demo_parts else "")
+    last = patient_data.get("last_name", demo_parts[-1] if demo_parts else "")
+    header = PatientHeader(
+        first_name=first,
+        last_name=last,
+        date_of_birth=patient_data.get("date_of_birth", demo.get("date_of_birth")),
+        gender=patient_data.get("gender", demo.get("gender")),
+        patient_id=context.get("patient_id"),
+    )
 
+    # Build clinical sections
     allergies = context.get("allergies", [])
-    meds = context.get("medications", [])
+    allergy_data = allergies if isinstance(allergies, list) else []
+    allergy_list = AllergyList(allergies=allergy_data)
+
+    medications = context.get("medications", [])
+    med_data = medications if isinstance(medications, list) else []
+    medication_list = MedicationList(medications=med_data)
+
+    labs = context.get("recent_labs", [])
+    lab_panel = LabPanel(
+        lab_results=labs if isinstance(labs, list) else [],
+        show_chart=False,
+        title="Recent Labs",
+    )
+
+    # Build problems section
     problems = context.get("problems", [])
+    problems_content = ""
+    if isinstance(problems, list) and problems:
+        problem_items = "".join(
+            f'<div class="problem-item">{p.get("name", p.get("description", "Unknown"))}</div>'
+            for p in problems
+        )
+        problems_card = ClinicalCard(
+            title="Active Problems",
+            icon="clipboard",
+            severity="warning",
+            badge_text=f"{len(problems)} active",
+        )
+        problems_card.add_child(f'<div class="problems-list">{problem_items}</div>')
+        problems_content = problems_card.build()
 
-    allergy_items = "".join(
-        f'<li class="allergy">{a.get("reaction", a.get("description", "Unknown"))}</li>'
-        for a in (allergies if isinstance(allergies, list) else [])
-    ) or "<li>No known allergies</li>"
-
-    med_items = "".join(
-        f'<li>{m.get("name", "Unknown")} - {m.get("dose", "")} {m.get("frequency", "")}</li>'
-        for m in (meds if isinstance(meds, list) else [])
-    ) or "<li>No active medications</li>"
-
-    problem_items = "".join(
-        f'<li>{p.get("name", p.get("description", "Unknown"))}</li>'
-        for p in (problems if isinstance(problems, list) else [])
-    ) or "<li>No active problems</li>"
+    stylesheet = generate_full_stylesheet()
 
     return f'''<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Dashboard</title>
     <style>
-        body {{ font-family: -apple-system, sans-serif; padding: 20px; background: #1a1a2e; color: #eee; margin: 0; }}
-        .header {{ background: linear-gradient(135deg, #3b82f6, #8b5cf6); padding: 20px; border-radius: 12px; margin-bottom: 20px; }}
-        .header h1 {{ margin: 0; font-size: 24px; }}
-        .header p {{ margin: 5px 0 0; opacity: 0.9; }}
-        .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }}
-        .card {{ background: #16213e; border-radius: 12px; padding: 16px; }}
-        .card h3 {{ color: #3b82f6; margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }}
-        .card ul {{ margin: 0; padding-left: 20px; }}
-        .card li {{ margin: 8px 0; }}
-        .allergy {{ color: #ef4444; font-weight: 600; }}
+        {stylesheet}
+        .dashboard {{ max-width: 960px; margin: 0 auto; padding: var(--space-6); }}
+        .dashboard-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--space-4);
+            margin-top: var(--space-4);
+        }}
+        .problem-item {{
+            padding: var(--space-2) var(--space-3);
+            border-bottom: 1px solid var(--border-secondary);
+            font-size: 0.8125rem;
+        }}
+        .problem-item:last-child {{ border-bottom: none; }}
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>{name}</h1>
-        <p>DOB: {dob} | Gender: {gender}</p>
-    </div>
-    <div class="grid">
-        <div class="card">
-            <h3>⚠️ Allergies</h3>
-            <ul>{allergy_items}</ul>
+    <div class="dashboard">
+        {header.build()}
+        <div class="dashboard-grid">
+            <div>{allergy_list.build()}</div>
+            <div>{medication_list.build()}</div>
         </div>
-        <div class="card">
-            <h3>💊 Medications</h3>
-            <ul>{med_items}</ul>
-        </div>
-        <div class="card">
-            <h3>📋 Active Problems</h3>
-            <ul>{problem_items}</ul>
+        <div class="dashboard-grid">
+            <div>{lab_panel.build()}</div>
+            <div>{problems_content}</div>
         </div>
     </div>
 </body>
@@ -631,7 +756,7 @@ async def drchrono_visualize_labs(
         patient_id: The patient's ID
         since: Show results since this date (YYYY-MM-DD)
     """
-    from mcp_ui import RawHtmlContent, CreateUIResourceOptions, create_ui_resource
+    from mcp_ui import CreateUIResourceOptions, RawHtmlContent, create_ui_resource
 
     client = get_rest_client()
 
@@ -649,7 +774,7 @@ async def drchrono_visualize_labs(
     if not lab_results:
         return {"message": f"No lab results found for patient {patient_id}"}
 
-    html = _generate_lab_chart_html(lab_results, patient_name)
+    html = _generate_lab_chart_html(lab_results, patient_name, patient)
 
     resource = create_ui_resource(CreateUIResourceOptions(
         uri=f"ui://drchrono/labs/{patient_id}",
@@ -682,15 +807,22 @@ async def drchrono_visualize_patient_dashboard(
     Args:
         patient_id: The patient's ID
     """
-    from mcp_ui import RawHtmlContent, CreateUIResourceOptions, create_ui_resource
+    from mcp_ui import CreateUIResourceOptions, RawHtmlContent, create_ui_resource
 
-    # Get clinical context (already fetches all data in parallel)
-    context = await drchrono_get_clinical_context(patient_id=patient_id)
+    client = get_rest_client()
+
+    # Fetch patient data and clinical context in parallel
+    import asyncio
+
+    patient, context = await asyncio.gather(
+        client.get_patient(patient_id),
+        drchrono_get_clinical_context(patient_id=patient_id),
+    )
 
     if "error" in context:
         return context
 
-    html = _generate_patient_dashboard_html(context)
+    html = _generate_patient_dashboard_html(context, patient)
 
     resource = create_ui_resource(CreateUIResourceOptions(
         uri=f"ui://drchrono/dashboard/{patient_id}",
@@ -702,7 +834,7 @@ async def drchrono_visualize_patient_dashboard(
         "content": [resource],
         "metadata": {
             "patient_id": patient_id,
-            "patient_name": context.get("demographics", {}).get("name", ""),
+            "patient_name": f"{patient.get('first_name', '')} {patient.get('last_name', '')}",
         },
     }
 
@@ -713,12 +845,12 @@ def main():
     parser.add_argument(
         "--http",
         action="store_true",
-        help="Run as HTTP server with Streamable HTTP transport (recommended for remote clients)",
+        help="Run as HTTP server with Streamable HTTP transport",
     )
     parser.add_argument(
         "--sse",
         action="store_true",
-        help="Run as HTTP server with SSE transport (deprecated, use --http instead)",
+        help="Run as HTTP server with SSE transport (deprecated, use --http)",
     )
     parser.add_argument(
         "--host",
@@ -731,19 +863,13 @@ def main():
         default=8000,
         help="Port to listen on (default: 8000)",
     )
-    parser.add_argument(
-        "--path",
-        default="/mcp",
-        help="HTTP endpoint path (default: /mcp)",
-    )
     args = parser.parse_args()
 
     if args.http:
-        # Streamable HTTP transport (recommended)
         import uvicorn
 
-        print(f"Starting DrChrono MCP server with Streamable HTTP transport")
-        print(f"Endpoint: http://{args.host}:{args.port}/mcp")
+        print("Starting DrChrono MCP server (Streamable HTTP)")
+        print(f"MCP Endpoint: http://{args.host}:{args.port}/mcp")
         uvicorn.run(
             mcp.streamable_http_app(),
             host=args.host,
@@ -751,11 +877,9 @@ def main():
             log_level="info",
         )
     elif args.sse:
-        # SSE transport (deprecated but kept for backward compatibility)
         import uvicorn
 
-        print(f"WARNING: SSE transport is deprecated. Use --http for Streamable HTTP.")
-        print(f"Starting DrChrono MCP server on http://{args.host}:{args.port}")
+        print("WARNING: SSE transport is deprecated. Use --http instead.")
         print(f"SSE endpoint: http://{args.host}:{args.port}/sse")
         uvicorn.run(
             mcp.sse_app(),
@@ -764,7 +888,6 @@ def main():
             log_level="info",
         )
     else:
-        # stdio transport (default for local MCP clients like Claude Desktop)
         mcp.run()
 
 

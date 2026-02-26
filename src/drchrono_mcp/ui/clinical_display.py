@@ -22,11 +22,11 @@ class ClinicalDisplayBuilder:
     # Clinical color scheme
     COLORS = {
         "critical": "#dc2626",  # Red
-        "warning": "#f59e0b",   # Amber
-        "info": "#3b82f6",      # Blue
-        "success": "#10b981",   # Green
-        "muted": "#6b7280",     # Gray
-        "primary": "#2563eb",   # Primary blue
+        "warning": "#f59e0b",  # Amber
+        "info": "#3b82f6",  # Blue
+        "success": "#10b981",  # Green
+        "muted": "#6b7280",  # Gray
+        "primary": "#2563eb",  # Primary blue
         "background": "#f8fafc",
         "card": "#ffffff",
         "border": "#e2e8f0",
@@ -66,15 +66,13 @@ class ClinicalDisplayBuilder:
             html_parts.append(cls._build_insurance_section(context["insurance"]))
 
         if context.get("past_encounter_memories"):
-            html_parts.append(
-                cls._build_memories_section(context["past_encounter_memories"])
-            )
+            html_parts.append(cls._build_memories_section(context["past_encounter_memories"]))
 
         return f"""
         <div class="clinical-context">
-            {''.join(html_parts)}
+            {"".join(html_parts)}
             <footer class="footer">
-                Retrieved: {context.get('retrieved_at', datetime.now().isoformat())}
+                Retrieved: {context.get("retrieved_at", datetime.now().isoformat())}
             </footer>
         </div>
         """
@@ -86,14 +84,14 @@ class ClinicalDisplayBuilder:
         <style>
             .clinical-context {{
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                background: {cls.COLORS['background']};
-                color: {cls.COLORS['text']};
+                background: {cls.COLORS["background"]};
+                color: {cls.COLORS["text"]};
                 padding: 1rem;
                 max-width: 1200px;
                 margin: 0 auto;
             }}
             .header {{
-                background: linear-gradient(135deg, {cls.COLORS['primary']} 0%, #1d4ed8 100%);
+                background: linear-gradient(135deg, {cls.COLORS["primary"]} 0%, #1d4ed8 100%);
                 color: white;
                 padding: 1.5rem;
                 border-radius: 12px;
@@ -108,8 +106,8 @@ class ClinicalDisplayBuilder:
                 font-size: 1rem;
             }}
             .card {{
-                background: {cls.COLORS['card']};
-                border: 1px solid {cls.COLORS['border']};
+                background: {cls.COLORS["card"]};
+                border: 1px solid {cls.COLORS["border"]};
                 border-radius: 8px;
                 padding: 1rem;
                 margin-bottom: 1rem;
@@ -121,7 +119,7 @@ class ClinicalDisplayBuilder:
                 gap: 0.5rem;
                 margin-bottom: 0.75rem;
                 padding-bottom: 0.5rem;
-                border-bottom: 1px solid {cls.COLORS['border']};
+                border-bottom: 1px solid {cls.COLORS["border"]};
             }}
             .card-title {{
                 font-weight: 600;
@@ -137,17 +135,17 @@ class ClinicalDisplayBuilder:
             }}
             .badge-critical {{
                 background: #fef2f2;
-                color: {cls.COLORS['critical']};
+                color: {cls.COLORS["critical"]};
                 border: 1px solid #fecaca;
             }}
             .badge-warning {{
                 background: #fffbeb;
-                color: {cls.COLORS['warning']};
+                color: {cls.COLORS["warning"]};
                 border: 1px solid #fde68a;
             }}
             .badge-info {{
                 background: #eff6ff;
-                color: {cls.COLORS['info']};
+                color: {cls.COLORS["info"]};
                 border: 1px solid #bfdbfe;
             }}
             .alert {{
@@ -160,15 +158,15 @@ class ClinicalDisplayBuilder:
             }}
             .alert-critical {{
                 background: #fef2f2;
-                border-left: 4px solid {cls.COLORS['critical']};
+                border-left: 4px solid {cls.COLORS["critical"]};
             }}
             .alert-warning {{
                 background: #fffbeb;
-                border-left: 4px solid {cls.COLORS['warning']};
+                border-left: 4px solid {cls.COLORS["warning"]};
             }}
             .alert-info {{
                 background: #eff6ff;
-                border-left: 4px solid {cls.COLORS['info']};
+                border-left: 4px solid {cls.COLORS["info"]};
             }}
             .alert-icon {{
                 font-size: 1.25rem;
@@ -182,7 +180,7 @@ class ClinicalDisplayBuilder:
             }}
             .alert-details {{
                 font-size: 0.875rem;
-                color: {cls.COLORS['text_muted']};
+                color: {cls.COLORS["text_muted"]};
             }}
             table {{
                 width: 100%;
@@ -192,11 +190,11 @@ class ClinicalDisplayBuilder:
             th, td {{
                 text-align: left;
                 padding: 0.5rem;
-                border-bottom: 1px solid {cls.COLORS['border']};
+                border-bottom: 1px solid {cls.COLORS["border"]};
             }}
             th {{
                 font-weight: 600;
-                color: {cls.COLORS['text_muted']};
+                color: {cls.COLORS["text_muted"]};
                 font-size: 0.8rem;
                 text-transform: uppercase;
                 letter-spacing: 0.05em;
@@ -205,13 +203,13 @@ class ClinicalDisplayBuilder:
                 border-bottom: none;
             }}
             .abnormal {{
-                color: {cls.COLORS['critical']};
+                color: {cls.COLORS["critical"]};
                 font-weight: 600;
             }}
             .empty-state {{
                 text-align: center;
                 padding: 1rem;
-                color: {cls.COLORS['text_muted']};
+                color: {cls.COLORS["text_muted"]};
                 font-style: italic;
             }}
             .two-column {{
@@ -223,13 +221,13 @@ class ClinicalDisplayBuilder:
                 display: flex;
                 justify-content: space-between;
                 padding: 0.5rem 0;
-                border-bottom: 1px solid {cls.COLORS['border']};
+                border-bottom: 1px solid {cls.COLORS["border"]};
             }}
             .detail-row:last-child {{
                 border-bottom: none;
             }}
             .detail-label {{
-                color: {cls.COLORS['text_muted']};
+                color: {cls.COLORS["text_muted"]};
                 font-size: 0.875rem;
             }}
             .detail-value {{
@@ -238,7 +236,7 @@ class ClinicalDisplayBuilder:
             .footer {{
                 text-align: center;
                 padding: 1rem;
-                color: {cls.COLORS['text_muted']};
+                color: {cls.COLORS["text_muted"]};
                 font-size: 0.75rem;
             }}
             .section-icon {{
@@ -252,9 +250,7 @@ class ClinicalDisplayBuilder:
         """
 
     @classmethod
-    def _build_header(
-        cls, name: str, age: int | None, gender: str, patient_id: int | None
-    ) -> str:
+    def _build_header(cls, name: str, age: int | None, gender: str, patient_id: int | None) -> str:
         """Build patient header."""
         age_str = f"{age}yo" if age else ""
         gender_short = gender[0].upper() if gender else ""
@@ -266,7 +262,7 @@ class ClinicalDisplayBuilder:
             <h1>{cls._escape(name)}</h1>
             <div class="patient-meta">
                 {meta}
-                {f' | ID: {patient_id}' if patient_id else ''}
+                {f" | ID: {patient_id}" if patient_id else ""}
             </div>
         </div>
         """
@@ -292,23 +288,21 @@ class ClinicalDisplayBuilder:
             details = alert.get("details", [])
             details_html = ""
             if details:
-                details_html = "<br>• " + "<br>• ".join(
-                    cls._escape(str(d)) for d in details[:5]
-                )
+                details_html = "<br>• " + "<br>• ".join(cls._escape(str(d)) for d in details[:5])
 
             alerts_html.append(f"""
                 <div class="alert alert-{severity}">
                     <span class="alert-icon">{icon}</span>
                     <div class="alert-content">
-                        <p class="alert-title">{cls._escape(alert.get('message', ''))}</p>
-                        {f'<p class="alert-details">{details_html}</p>' if details_html else ''}
+                        <p class="alert-title">{cls._escape(alert.get("message", ""))}</p>
+                        {f'<p class="alert-details">{details_html}</p>' if details_html else ""}
                     </div>
                 </div>
             """)
 
         return f"""
         <div class="alerts-section">
-            {''.join(alerts_html)}
+            {"".join(alerts_html)}
         </div>
         """
 
@@ -329,28 +323,28 @@ class ClinicalDisplayBuilder:
                     <div class="detail-row">
                         <span class="detail-label">Time</span>
                         <span class="detail-value">
-                            {cls._escape(visit.get('scheduled_time', ''))}
+                            {cls._escape(visit.get("scheduled_time", ""))}
                         </span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Reason</span>
                         <span class="detail-value">
-                            {cls._escape(visit.get('reason', 'Not specified'))}
+                            {cls._escape(visit.get("reason", "Not specified"))}
                         </span>
                     </div>
                 </div>
                 <div>
                     <div class="detail-row">
                         <span class="detail-label">Status</span>
-                        <span class="detail-value">{cls._escape(visit.get('status', ''))}</span>
+                        <span class="detail-value">{cls._escape(visit.get("status", ""))}</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Appointment ID</span>
-                        <span class="detail-value">{visit.get('appointment_id', '')}</span>
+                        <span class="detail-value">{visit.get("appointment_id", "")}</span>
                     </div>
                 </div>
             </div>
-            {cls._build_clinical_note_preview(visit.get('clinical_note'))}
+            {cls._build_clinical_note_preview(visit.get("clinical_note"))}
         </div>
         """
 
@@ -379,9 +373,9 @@ class ClinicalDisplayBuilder:
                 severity_class = "abnormal" if a.get("severity") == "severe" else ""
                 rows.append(f"""
                     <tr>
-                        <td class="{severity_class}">{cls._escape(a.get('allergen', ''))}</td>
-                        <td>{cls._escape(a.get('reaction', 'Not specified'))}</td>
-                        <td>{cls._escape(a.get('severity', 'Unknown'))}</td>
+                        <td class="{severity_class}">{cls._escape(a.get("allergen", ""))}</td>
+                        <td>{cls._escape(a.get("reaction", "Not specified"))}</td>
+                        <td>{cls._escape(a.get("severity", "Unknown"))}</td>
                     </tr>
                 """)
             content = f"""
@@ -394,7 +388,7 @@ class ClinicalDisplayBuilder:
                         </tr>
                     </thead>
                     <tbody>
-                        {''.join(rows)}
+                        {"".join(rows)}
                     </tbody>
                 </table>
             """
@@ -420,9 +414,9 @@ class ClinicalDisplayBuilder:
             for m in medications:
                 rows.append(f"""
                     <tr>
-                        <td><strong>{cls._escape(m.get('name', ''))}</strong></td>
-                        <td>{cls._escape(m.get('dose', ''))}</td>
-                        <td>{cls._escape(m.get('frequency', ''))}</td>
+                        <td><strong>{cls._escape(m.get("name", ""))}</strong></td>
+                        <td>{cls._escape(m.get("dose", ""))}</td>
+                        <td>{cls._escape(m.get("frequency", ""))}</td>
                     </tr>
                 """)
             content = f"""
@@ -435,7 +429,7 @@ class ClinicalDisplayBuilder:
                         </tr>
                     </thead>
                     <tbody>
-                        {''.join(rows)}
+                        {"".join(rows)}
                     </tbody>
                 </table>
             """
@@ -461,9 +455,9 @@ class ClinicalDisplayBuilder:
             for p in problems:
                 rows.append(f"""
                     <tr>
-                        <td>{cls._escape(p.get('name', ''))}</td>
-                        <td><code>{cls._escape(p.get('icd_code', '') or 'N/A')}</code></td>
-                        <td>{cls._escape(p.get('onset_date', '') or 'Unknown')}</td>
+                        <td>{cls._escape(p.get("name", ""))}</td>
+                        <td><code>{cls._escape(p.get("icd_code", "") or "N/A")}</code></td>
+                        <td>{cls._escape(p.get("onset_date", "") or "Unknown")}</td>
                     </tr>
                 """)
             content = f"""
@@ -476,7 +470,7 @@ class ClinicalDisplayBuilder:
                         </tr>
                     </thead>
                     <tbody>
-                        {''.join(rows)}
+                        {"".join(rows)}
                     </tbody>
                 </table>
             """
@@ -508,10 +502,10 @@ class ClinicalDisplayBuilder:
 
                 rows.append(f"""
                     <tr>
-                        <td>{cls._escape(lab.get('test', ''))}</td>
+                        <td>{cls._escape(lab.get("test", ""))}</td>
                         <td class="{abnormal_class}">{cls._escape(value_display)}</td>
-                        <td>{cls._escape(lab.get('normal_range', '') or 'N/A')}</td>
-                        <td>{cls._escape(lab.get('date', '') or '')}</td>
+                        <td>{cls._escape(lab.get("normal_range", "") or "N/A")}</td>
+                        <td>{cls._escape(lab.get("date", "") or "")}</td>
                     </tr>
                 """)
             content = f"""
@@ -525,7 +519,7 @@ class ClinicalDisplayBuilder:
                         </tr>
                     </thead>
                     <tbody>
-                        {''.join(rows)}
+                        {"".join(rows)}
                     </tbody>
                 </table>
             """
@@ -550,9 +544,9 @@ class ClinicalDisplayBuilder:
         for v in visits:
             rows.append(f"""
                 <tr>
-                    <td>{cls._escape(v.get('date', '')[:10] if v.get('date') else '')}</td>
-                    <td>{cls._escape(v.get('reason', 'Not specified'))}</td>
-                    <td>{cls._escape(v.get('status', ''))}</td>
+                    <td>{cls._escape(v.get("date", "")[:10] if v.get("date") else "")}</td>
+                    <td>{cls._escape(v.get("reason", "Not specified"))}</td>
+                    <td>{cls._escape(v.get("status", ""))}</td>
                 </tr>
             """)
 
@@ -571,7 +565,7 @@ class ClinicalDisplayBuilder:
                     </tr>
                 </thead>
                 <tbody>
-                    {''.join(rows)}
+                    {"".join(rows)}
                 </tbody>
             </table>
         </div>
@@ -584,14 +578,10 @@ class ClinicalDisplayBuilder:
         gender = cls._escape(demographics.get("gender", ""))
         lang = cls._escape(demographics.get("preferred_language", "") or "English")
         phone = cls._escape(
-            contact.get("cell_phone", "")
-            or contact.get("home_phone", "")
-            or "Not on file"
+            contact.get("cell_phone", "") or contact.get("home_phone", "") or "Not on file"
         )
         email = cls._escape(contact.get("email", "") or "Not on file")
-        emergency = cls._escape(
-            contact.get("emergency_contact", "") or "Not on file"
-        )
+        emergency = cls._escape(contact.get("emergency_contact", "") or "Not on file")
 
         return f"""
         <div class="card">
@@ -643,7 +633,7 @@ class ClinicalDisplayBuilder:
             copay_html = f"""
             <div class="detail-row">
                 <span class="detail-label">Copay</span>
-                <span class="detail-value">${insurance.get('copay', 'N/A')}</span>
+                <span class="detail-value">${insurance.get("copay", "N/A")}</span>
             </div>
             """
 
@@ -675,7 +665,7 @@ class ClinicalDisplayBuilder:
             return ""
 
         memory_items = []
-        for mem in (memories if isinstance(memories, list) else []):
+        for mem in memories if isinstance(memories, list) else []:
             if isinstance(mem, str):
                 memory_items.append(f"<li>{cls._escape(mem[:200])}</li>")
             elif isinstance(mem, dict):
@@ -692,7 +682,7 @@ class ClinicalDisplayBuilder:
                 <h2 class="card-title">Clinical Memory (Past Encounters)</h2>
             </div>
             <ul style="margin: 0; padding-left: 1.5rem;">
-                {''.join(memory_items[:5])}
+                {"".join(memory_items[:5])}
             </ul>
         </div>
         """
@@ -760,9 +750,9 @@ class ClinicalDisplayBuilder:
         for v in immunizations:
             rows.append(f"""
                 <tr>
-                    <td>{self._escape(v.get('vaccine', ''))}</td>
-                    <td>{self._escape(v.get('date_administered', '') or 'Unknown')}</td>
-                    <td><code>{self._escape(v.get('cvx_code', '') or 'N/A')}</code></td>
+                    <td>{self._escape(v.get("vaccine", ""))}</td>
+                    <td>{self._escape(v.get("date_administered", "") or "Unknown")}</td>
+                    <td><code>{self._escape(v.get("cvx_code", "") or "N/A")}</code></td>
                 </tr>
             """)
 
@@ -782,7 +772,7 @@ class ClinicalDisplayBuilder:
                     </tr>
                 </thead>
                 <tbody>
-                    {''.join(rows)}
+                    {"".join(rows)}
                 </tbody>
             </table>
         </div>
