@@ -13,10 +13,13 @@ never logged.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from drchrono_mcp.inbox.config import InboxConfig
 from drchrono_mcp.inbox.corpus import CorpusBuilder, CorpusStore
+
+_db_lock = asyncio.Lock()
 
 # Coarse confidence gate for auto-draftable vs. queue-for-review. The finer HITL policy and the
 # deterministic abnormal-lab rules table live in the (deferred) retrieval rules layer.
@@ -166,13 +169,14 @@ async def drchrono_inbox_build_voice_graph(
 
     messages = CorpusStore(config.corpus_path).load()
 
-    reset_graph_store(config.graph_path)
     embedder = build_embedder(config.embedder_model if use_local_model else None)
-    store = build_graph_store(config.graph_path)
-    try:
-        stats = GraphIngestor(store, embedder, HeuristicExtractor()).ingest(messages)
-    finally:
-        store.close()
+    async with _db_lock:
+        reset_graph_store(config.graph_path)
+        store = build_graph_store(config.graph_path)
+        try:
+            stats = GraphIngestor(store, embedder, HeuristicExtractor()).ingest(messages)
+        finally:
+            store.close()
     return {
         "built": True,
         "messages": stats.messages,
@@ -217,16 +221,21 @@ async def drchrono_inbox_draft_reply(
 
     incoming = HeuristicExtractor().extract(subject, body)
     embedder = build_embedder(config.embedder_model if use_local_model else None)
-    store = build_graph_store(config.graph_path)
-    try:
-        hits = store.query(embedder.embed([f"{subject}\n{body}"])[0], top_k=max(250, top_k))
-        if incoming.topic != "general" and hasattr(store, "query_topic"):
-            normalcy = incoming.normalcy if incoming.normalcy != "unknown" else None
-            topic_hits = store.query_topic(incoming.topic, normalcy=normalcy, top_k=max(6, top_k))
-            seen = {hit.get("message_id") for hit in topic_hits}
-            hits = topic_hits + [hit for hit in hits if hit.get("message_id") not in seen]
-    finally:
-        store.close()
+    async with _db_lock:
+        store = build_graph_store(config.graph_path)
+        try:
+            hits = store.query(embedder.embed([f"{subject}\n{body}"])[0], top_k=max(250, top_k))
+            if incoming.topic != "general" and hasattr(store, "query_topic"):
+                normalcy = incoming.normalcy if incoming.normalcy != "unknown" else None
+                topic_hits = store.query_topic(
+                    incoming.topic,
+                    normalcy=normalcy,
+                    top_k=max(6, top_k),
+                )
+                seen = {hit.get("message_id") for hit in topic_hits}
+                hits = topic_hits + [hit for hit in hits if hit.get("message_id") not in seen]
+        finally:
+            store.close()
 
     if not hits:
         return {"needs_review": True, "reason": "no voice match found", "matched": None}

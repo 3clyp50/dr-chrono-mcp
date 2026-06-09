@@ -45,7 +45,7 @@ class CorpusBuilder:
         doctor_id = self.config.doctor_id
         if doctor_id is None:
             user_info = await self.client.get("/users/current")
-            doctor_id = user_info.get("doctor")
+            doctor_id = user_info.get("doctor") if user_info else None
         if not doctor_id:
             raise RuntimeError(
                 "Cannot determine doctor_id. Set DRCHRONO_DOCTOR_ID env var or ensure the "
@@ -62,6 +62,8 @@ class CorpusBuilder:
 
         for _ in range(500):  # safety: caps at 50 000 messages
             response = await self.client.get(endpoint, params)
+            if not response:
+                break
             for item in response.get("results", []):
                 msg = SentMessage.from_drchrono(item)
                 if msg.body.strip():

@@ -42,6 +42,9 @@ Keep it self-contained so it can be PR'd upstream as the foundation's inbox capa
   (thresholds); the graph supplies *wording* only. Keep the two separable. The rules table is
   **deferred** - `draft_reply` currently sources the action from the graph's weighted `THEN_ORDERS`
   and gates uncertain items via `needs_review` for one-tap human approval.
+- **Graph-store access is serialized in MCP tools.** Embedded Kuzu can lock when multiple
+  async requests open it concurrently. Keep graph rebuild/query sections under the module-level
+  `_db_lock` in `mcp_tools.py`.
 
 ## Structure
 Built:
