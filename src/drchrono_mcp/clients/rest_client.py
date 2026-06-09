@@ -40,6 +40,7 @@ class DrChronoClient:
                     "Content-Type": "application/json",
                 },
                 timeout=30.0,
+                follow_redirects=True,
             )
         else:
             # Update token in case it was refreshed

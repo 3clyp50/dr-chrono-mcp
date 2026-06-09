@@ -45,6 +45,11 @@ htmlcov/
 tokens.json
 *.token
 
+# Inbox autopilot (generated data - may contain PHI; NEVER commit)
+.inbox_data/
+*.kuzu
+*.kuzu.wal
+
 # uv
 .uv/
 uv.lock

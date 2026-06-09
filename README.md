@@ -12,6 +12,8 @@ A Model Context Protocol (MCP) server for the [DrChrono](https://www.drchrono.co
 - **Billing** - Check eligibility, view charges and transactions
 - **Lab & Imaging** - Retrieve lab results and uploaded documents
 - **FHIR R4** - Standardized healthcare data access via ConnectEHR
+- **Clinical Inbox Autopilot** - Build a local physician voice graph from sent messages and
+  draft voice-grounded inbox replies
 
 ## Prerequisites
 
@@ -158,6 +160,19 @@ DRCHRONO_CLIENT_ID=xxx DRCHRONO_CLIENT_SECRET=yyy uv run drchrono-mcp
 | `drchrono_fhir_get_capability_statement` | Server capabilities |
 | `drchrono_fhir_patient_everything` | All patient data |
 
+### Clinical Inbox Autopilot
+| Tool | Description |
+|------|-------------|
+| `drchrono_inbox_status` | Check whether the inbox corpus and voice graph are ready |
+| `drchrono_inbox_build_voice_graph` | Build/rebuild the response graph from synthetic or live sent messages |
+| `drchrono_inbox_draft_reply` | Retrieve voice exemplars and likely next action for an incoming inbox item |
+
+The inbox tools are synthetic-first and run without live credentials by default. Live corpus builds
+require DrChrono OAuth credentials and local authorization. Message bodies are PHI; keep generated
+`.inbox_data/` artifacts local and never commit them. See
+[`docs/clinical-inbox-endpoint-inventory.md`](docs/clinical-inbox-endpoint-inventory.md) for the
+message-center endpoint map and next implementation steps.
+
 ## Example Workflows
 
 ### Get Today's Appointments
@@ -180,6 +195,14 @@ Use drchrono_get_appointments with date="2024-01-15"
 ### Export Patient Data (FHIR)
 ```
 drchrono_fhir_patient_everything with patient_id
+```
+
+### Build and Query the Inbox Voice Graph
+```bash
+# Synthetic corpus, no credentials required
+uv run python -m drchrono_mcp.inbox.cli synth --n 60
+uv run python -m drchrono_mcp.inbox.cli build-graph
+uv run python -m drchrono_mcp.inbox.cli retrieve
 ```
 
 ## Security Notes

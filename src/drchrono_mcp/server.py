@@ -521,7 +521,12 @@ def _generate_lab_chart_html(labs: list, patient_name: str) -> str:
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
     <style>
-        body {{ font-family: -apple-system, sans-serif; padding: 20px; background: #1a1a2e; color: #eee; }}
+        body {{
+            font-family: -apple-system, sans-serif;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }}
         h2 {{ color: #3b82f6; margin-bottom: 20px; }}
         .chart-container {{ background: #16213e; border-radius: 12px; padding: 20px; }}
     </style>
@@ -579,13 +584,34 @@ def _generate_patient_dashboard_html(context: dict) -> str:
 <html>
 <head>
     <style>
-        body {{ font-family: -apple-system, sans-serif; padding: 20px; background: #1a1a2e; color: #eee; margin: 0; }}
-        .header {{ background: linear-gradient(135deg, #3b82f6, #8b5cf6); padding: 20px; border-radius: 12px; margin-bottom: 20px; }}
+        body {{
+            font-family: -apple-system, sans-serif;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+            margin: 0;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }}
         .header h1 {{ margin: 0; font-size: 24px; }}
         .header p {{ margin: 5px 0 0; opacity: 0.9; }}
-        .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }}
+        .grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }}
         .card {{ background: #16213e; border-radius: 12px; padding: 16px; }}
-        .card h3 {{ color: #3b82f6; margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }}
+        .card h3 {{
+            color: #3b82f6;
+            margin: 0 0 12px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }}
         .card ul {{ margin: 0; padding-left: 20px; }}
         .card li {{ margin: 8px 0; }}
         .allergy {{ color: #ef4444; font-weight: 600; }}
@@ -631,7 +657,7 @@ async def drchrono_visualize_labs(
         patient_id: The patient's ID
         since: Show results since this date (YYYY-MM-DD)
     """
-    from mcp_ui import RawHtmlContent, CreateUIResourceOptions, create_ui_resource
+    from mcp_ui import CreateUIResourceOptions, RawHtmlContent, create_ui_resource
 
     client = get_rest_client()
 
@@ -682,7 +708,7 @@ async def drchrono_visualize_patient_dashboard(
     Args:
         patient_id: The patient's ID
     """
-    from mcp_ui import RawHtmlContent, CreateUIResourceOptions, create_ui_resource
+    from mcp_ui import CreateUIResourceOptions, RawHtmlContent, create_ui_resource
 
     # Get clinical context (already fetches all data in parallel)
     context = await drchrono_get_clinical_context(patient_id=patient_id)
@@ -705,6 +731,16 @@ async def drchrono_visualize_patient_dashboard(
             "patient_name": context.get("demographics", {}).get("name", ""),
         },
     }
+
+
+# ============================================
+# CLINICAL INBOX AUTOPILOT TOOLS
+# ============================================
+# Self-contained, synthetic-first inbox tools (corpus -> voice graph -> grounded draft).
+# Registered from the inbox package so the whole capability stays cherry-pickable upstream.
+from drchrono_mcp.inbox.mcp_tools import register_inbox_tools  # noqa: E402
+
+register_inbox_tools(mcp)
 
 
 def main():
@@ -742,7 +778,7 @@ def main():
         # Streamable HTTP transport (recommended)
         import uvicorn
 
-        print(f"Starting DrChrono MCP server with Streamable HTTP transport")
+        print("Starting DrChrono MCP server with Streamable HTTP transport")
         print(f"Endpoint: http://{args.host}:{args.port}/mcp")
         uvicorn.run(
             mcp.streamable_http_app(),
@@ -754,7 +790,7 @@ def main():
         # SSE transport (deprecated but kept for backward compatibility)
         import uvicorn
 
-        print(f"WARNING: SSE transport is deprecated. Use --http for Streamable HTTP.")
+        print("WARNING: SSE transport is deprecated. Use --http for Streamable HTTP.")
         print(f"Starting DrChrono MCP server on http://{args.host}:{args.port}")
         print(f"SSE endpoint: http://{args.host}:{args.port}/sse")
         uvicorn.run(
