@@ -108,7 +108,19 @@ class KuzuGraphStore:
             mid, emb_json = result.get_next()
             scored.append((_cosine(query_embedding, json.loads(emb_json or "[]")), mid))
         scored.sort(key=lambda t: t[0], reverse=True)
-        return [self._expand(score, mid) for score, mid in scored[:top_k]]
+        topic_actions_cache: dict[str, list[dict[str, Any]]] = {}
+        top_phrase_cache: dict[str, str | None] = {}
+        phrase_action_cache: dict[str, str | None] = {}
+        return [
+            self._expand(
+                score,
+                mid,
+                topic_actions_cache=topic_actions_cache,
+                top_phrase_cache=top_phrase_cache,
+                phrase_action_cache=phrase_action_cache,
+            )
+            for score, mid in scored[:top_k]
+        ]
 
     def query_topic(
         self,
@@ -119,14 +131,34 @@ class KuzuGraphStore:
         rows = self._topic_rows(topic, normalcy, top_k)
         if not rows and normalcy is not None:
             rows = self._topic_rows(topic, None, top_k)
-        return [self._expand(1.0, mid) for mid in rows]
+        topic_actions_cache: dict[str, list[dict[str, Any]]] = {}
+        top_phrase_cache: dict[str, str | None] = {}
+        phrase_action_cache: dict[str, str | None] = {}
+        return [
+            self._expand(
+                1.0,
+                mid,
+                topic_actions_cache=topic_actions_cache,
+                top_phrase_cache=top_phrase_cache,
+                phrase_action_cache=phrase_action_cache,
+            )
+            for mid in rows
+        ]
 
     def close(self) -> None:
         self._conn = None
         self._db = None
 
     # -- multi-hop expansion (per top-ranked message) ------------------------
-    def _expand(self, score: float, message_id: str) -> dict[str, Any]:
+    def _expand(
+        self,
+        score: float,
+        message_id: str,
+        *,
+        topic_actions_cache: dict[str, list[dict[str, Any]]] | None = None,
+        top_phrase_cache: dict[str, str | None] | None = None,
+        phrase_action_cache: dict[str, str | None] | None = None,
+    ) -> dict[str, Any]:
         row = self._one(
             "MATCH (m:Message {id: $id})-[:INSTANCE_OF]->(p:Phrase) "
             "OPTIONAL MATCH (m)-[:ABOUT]->(t:Topic) "
@@ -138,8 +170,21 @@ class KuzuGraphStore:
         subject, body, phrase_key, normalcy, topic, problem, demographic = (
             row if row else ("", "", None, "unknown", None, None, None)
         )
-        actions = self._topic_actions(topic) if topic else []
-        phrase_action = self._phrase_action(phrase_key) if phrase_key else None
+        actions = (
+            self._cached_topic_actions(topic, topic_actions_cache)
+            if topic
+            else []
+        )
+        phrase_action = (
+            self._cached_phrase_action(phrase_key, phrase_action_cache)
+            if phrase_key
+            else None
+        )
+        usual_phrase = (
+            self._cached_top_phrase(topic, top_phrase_cache)
+            if topic
+            else None
+        )
         return {
             "score": round(score, 4),
             "message_id": message_id,
@@ -152,7 +197,7 @@ class KuzuGraphStore:
             "demographic": demographic,
             "action": phrase_action,
             "usual_action": actions[0]["action"] if actions else None,
-            "usual_phrase": self._top_phrase(topic) if topic else None,
+            "usual_phrase": usual_phrase,
             "topic_actions": actions,
         }
 
@@ -198,6 +243,17 @@ class KuzuGraphStore:
         )
         return row[0] if row else None
 
+    def _cached_top_phrase(
+        self,
+        topic: str,
+        cache: dict[str, str | None] | None,
+    ) -> str | None:
+        if cache is None:
+            return self._top_phrase(topic)
+        if topic not in cache:
+            cache[topic] = self._top_phrase(topic)
+        return cache[topic]
+
     def _phrase_action(self, phrase_key: str) -> str | None:
         row = self._one(
             "MATCH (p:Phrase {key: $phrase})-[r:THEN_ORDERS]->(a:Action) "
@@ -205,6 +261,17 @@ class KuzuGraphStore:
             {"phrase": phrase_key},
         )
         return row[0] if row else None
+
+    def _cached_phrase_action(
+        self,
+        phrase_key: str,
+        cache: dict[str, str | None] | None,
+    ) -> str | None:
+        if cache is None:
+            return self._phrase_action(phrase_key)
+        if phrase_key not in cache:
+            cache[phrase_key] = self._phrase_action(phrase_key)
+        return cache[phrase_key]
 
     def _topic_actions(self, topic: str) -> list[dict[str, Any]]:
         result = self._run(
@@ -217,3 +284,14 @@ class KuzuGraphStore:
             text, weight = result.get_next()
             tally[text] += int(weight)
         return [{"action": a, "weight": w} for a, w in tally.most_common()]
+
+    def _cached_topic_actions(
+        self,
+        topic: str,
+        cache: dict[str, list[dict[str, Any]]] | None,
+    ) -> list[dict[str, Any]]:
+        if cache is None:
+            return self._topic_actions(topic)
+        if topic not in cache:
+            cache[topic] = self._topic_actions(topic)
+        return cache[topic]

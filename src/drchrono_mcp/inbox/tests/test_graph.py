@@ -81,6 +81,34 @@ def test_hit_action_is_phrase_specific_with_usual_action_fallback() -> None:
     assert hit["topic_actions"] == [{"action": "schedule follow-up testing", "weight": 1}]
 
 
+def test_inmemory_action_uses_phrase_weight_not_raw_message_action() -> None:
+    store = InMemoryGraphStore()
+    for message_id, action, embedding in (
+        ("minority-message", "less common follow-up", [1.0, 0.0]),
+        ("majority-message-1", "weighted phrase follow-up", [0.0, 1.0]),
+        ("majority-message-2", "weighted phrase follow-up", [0.0, 1.0]),
+    ):
+        store.add_message(
+            message_id=message_id,
+            subject="Shared abnormal topic",
+            body=f"Please complete {action}.",
+            facts=ResponseFacts(
+                topic="shared_topic",
+                normalcy="abnormal",
+                action=action,
+                phrase_key="shared_topic:abnormal",
+            ),
+            embedding=embedding,
+        )
+
+    hit = store.query([1.0, 0.0], top_k=1)[0]
+
+    assert hit["message_id"] == "minority-message"
+    assert hit["action"] == "weighted phrase follow-up"
+    assert hit["usual_action"] == "weighted phrase follow-up"
+    assert hit["topic_actions"][0] == {"action": "weighted phrase follow-up", "weight": 2}
+
+
 def test_kuzu_hit_action_contract_matches_inmemory_when_available(tmp_path: Path) -> None:
     pytest.importorskip("kuzu")
     from drchrono_mcp.inbox.graph.kuzu_store import KuzuGraphStore

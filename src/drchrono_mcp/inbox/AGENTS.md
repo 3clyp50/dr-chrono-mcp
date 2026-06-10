@@ -70,8 +70,9 @@ Built:
     does retrieval + structure; the host model composes the patient-specific draft (no PHI to a
     remote LLM from inside the tool). It extracts the incoming topic first, queries the graph by
     topic as a fallback to cosine retrieval, and then returns only the top requested exemplars.
-- `tests/` - `test_extract.py`, `test_graph.py`, `test_mcp_tools.py` (synthetic, zero creds; 21
-  passing). `test_mcp_tools` guards the rebuild double-count fix.
+- `tests/` - `test_extract.py`, `test_graph.py`, `test_mcp_tools.py` (synthetic, zero creds; 27
+  passing, one optional Kuzu contract test skipped when Kuzu is absent). `test_mcp_tools` guards
+  the rebuild double-count fix.
 - `cli.py` - dev entrypoint: `synth` / `stats` / `show` / `build-graph` / `retrieve` / `build-live`.
 
 Wired: `server.py` calls `register_inbox_tools(mcp)` so the tools ship with the foundation server.
@@ -107,7 +108,7 @@ Next:
 - MCP tools (no creds): the three `drchrono_inbox_*` tools register on FastMCP and run on synthetic
   data. `test_mcp_tools.py` covers build -> status -> draft for the canonical case, the rebuild
   double-count guard, the no-graph error, and the gated `source="live"`.
-- Tests: `uv run pytest src/drchrono_mcp/inbox` (21 passing). Dep-light variant (no `uv sync`):
+- Tests: `uv run pytest src/drchrono_mcp/inbox` (27 passing, one optional Kuzu skip). Dep-light variant (no `uv sync`):
   `PYTHONPATH=src uv run --no-project --with 'pydantic>=2' --with pytest pytest src/drchrono_mcp/inbox/tests`.
 - Kuzu backend: install `kuzu` and re-run `build-graph`/`retrieve` - `build_graph_store` auto-selects
   it and output matches the in-memory store. (Dev default needs no native dep.)

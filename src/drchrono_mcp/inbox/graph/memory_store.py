@@ -101,7 +101,7 @@ class InMemoryGraphStore:
         ranked = sorted(
             candidates,
             key=lambda item: (
-                bool(item[1]["action"]),
+                bool(self._phrase_action(item[1]["phrase_key"])),
                 item[1]["normalcy"] == normalcy,
                 item[0],
             ),
@@ -117,6 +117,7 @@ class InMemoryGraphStore:
     def _expand(self, score: float, message_id: str, rec: dict[str, Any]) -> dict[str, Any]:
         topic = rec["topic"]
         phrase_key = rec["phrase_key"]
+        phrase_action = self._phrase_action(phrase_key)
         topic_actions = self._topic_actions(topic)
         return {
             "score": round(score, 4),
@@ -128,7 +129,7 @@ class InMemoryGraphStore:
             "normalcy": rec["normalcy"],
             "problem": rec["problem"],
             "demographic": rec["demographic"],
-            "action": rec["action"],
+            "action": phrase_action,
             "usual_action": topic_actions[0]["action"] if topic_actions else None,
             "usual_phrase": self._top_phrase(topic),
             "topic_actions": topic_actions,
@@ -137,6 +138,10 @@ class InMemoryGraphStore:
     def _top_phrase(self, topic: str) -> str | None:
         phrases = self.replied_with.get(topic)
         return phrases.most_common(1)[0][0] if phrases else None
+
+    def _phrase_action(self, phrase_key: str) -> str | None:
+        actions = self.then_orders.get(phrase_key)
+        return actions.most_common(1)[0][0] if actions else None
 
     def _topic_actions(self, topic: str) -> list[dict[str, Any]]:
         """Actions the doctor orders for this topic, aggregated over its phrases, by frequency."""

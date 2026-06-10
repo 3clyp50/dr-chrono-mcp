@@ -96,7 +96,8 @@ def cmd_retrieve(args: argparse.Namespace) -> None:
         return
     for rank, hit in enumerate(hits, 1):
         print(f"#{rank}  score={hit['score']}  topic={hit['topic']}  normalcy={hit['normalcy']}")
-        print(f"    usual action: {hit['action']}")
+        print(f"    phrase action: {hit.get('action')}")
+        print(f"    usual action: {hit.get('usual_action')}")
         if hit.get("topic_actions"):
             actions = ", ".join(f"{a['action']} (x{a['weight']})" for a in hit["topic_actions"])
             print(f"    actions for topic: {actions}")
