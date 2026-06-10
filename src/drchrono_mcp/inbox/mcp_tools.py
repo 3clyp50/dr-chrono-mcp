@@ -68,7 +68,9 @@ def _needs_review(
     suggested_action: str | None,
 ) -> bool:
     topic_not_confident = incoming.topic == "general" or matched_topic != incoming.topic
-    missing_facts = matched_normalcy == "unknown" or not suggested_action
+    missing_facts = matched_normalcy == "unknown" or (
+        matched_normalcy == "abnormal" and not suggested_action
+    )
     low_score = top["score"] < _MIN_CONFIDENCE
     return topic_not_confident or missing_facts or low_score
 

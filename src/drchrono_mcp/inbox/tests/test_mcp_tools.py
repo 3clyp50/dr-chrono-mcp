@@ -75,6 +75,14 @@ def test_review_gate_requires_complete_facts_even_for_high_score() -> None:
         matched_normalcy="abnormal",
         suggested_action="Schedule a 3-hour OGTT",
     )
+    incoming_normal = ResponseFacts(topic="gestational_glucose", normalcy="normal")
+    assert not mcp_tools._needs_review(
+        top=high_score_hit,
+        incoming=incoming_normal,
+        matched_topic="gestational_glucose",
+        matched_normalcy="normal",
+        suggested_action=None,
+    )
 
 
 def test_suggested_action_uses_usual_action_fallback() -> None:
