@@ -139,6 +139,7 @@ class KuzuGraphStore:
             row if row else ("", "", None, "unknown", None, None, None)
         )
         actions = self._topic_actions(topic) if topic else []
+        phrase_action = self._phrase_action(phrase_key) if phrase_key else None
         return {
             "score": round(score, 4),
             "message_id": message_id,
@@ -149,7 +150,8 @@ class KuzuGraphStore:
             "normalcy": normalcy,
             "problem": problem,
             "demographic": demographic,
-            "action": actions[0]["action"] if actions else None,
+            "action": phrase_action,
+            "usual_action": actions[0]["action"] if actions else None,
             "usual_phrase": self._top_phrase(topic) if topic else None,
             "topic_actions": actions,
         }
@@ -193,6 +195,14 @@ class KuzuGraphStore:
             "MATCH (t:Topic {key: $topic})-[r:REPLIED_WITH]->(p:Phrase) "
             "RETURN p.key ORDER BY r.weight DESC LIMIT 1",
             {"topic": topic},
+        )
+        return row[0] if row else None
+
+    def _phrase_action(self, phrase_key: str) -> str | None:
+        row = self._one(
+            "MATCH (p:Phrase {key: $phrase})-[r:THEN_ORDERS]->(a:Action) "
+            "RETURN a.text ORDER BY r.weight DESC LIMIT 1",
+            {"phrase": phrase_key},
         )
         return row[0] if row else None
 

@@ -38,6 +38,8 @@ Keep it self-contained so it can be PR'd upstream as the foundation's inbox capa
     simple typed pair); added `Message -[ABOUT]-> Topic` (the retrieval anchor); `REPLIED_WITH` and
     `THEN_ORDERS` carry a `weight` (observation count) so retrieval ranks his *usual* wording and
     *usual* next order, not a one-off.
+  - Graph query hits expose `action` as the selected phrase/message-specific action and
+    `usual_action` / `topic_actions` as the topic-level weighted fallback and support.
 - **Determinism split.** Abnormal-lab *action* should come from an explicit rules table
   (thresholds); the graph supplies *wording* only. Keep the two separable. The rules table is
   **deferred** - `draft_reply` currently sources the action from the graph's weighted `THEN_ORDERS`

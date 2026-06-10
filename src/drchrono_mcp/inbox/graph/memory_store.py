@@ -117,6 +117,7 @@ class InMemoryGraphStore:
     def _expand(self, score: float, message_id: str, rec: dict[str, Any]) -> dict[str, Any]:
         topic = rec["topic"]
         phrase_key = rec["phrase_key"]
+        topic_actions = self._topic_actions(topic)
         return {
             "score": round(score, 4),
             "message_id": message_id,
@@ -128,8 +129,9 @@ class InMemoryGraphStore:
             "problem": rec["problem"],
             "demographic": rec["demographic"],
             "action": rec["action"],
+            "usual_action": topic_actions[0]["action"] if topic_actions else None,
             "usual_phrase": self._top_phrase(topic),
-            "topic_actions": self._topic_actions(topic),
+            "topic_actions": topic_actions,
         }
 
     def _top_phrase(self, topic: str) -> str | None:

@@ -51,10 +51,26 @@ def _assemble_draft(hit: dict[str, Any]) -> str:
 def _suggested_action(hit: dict[str, Any]) -> str | None:
     if hit.get("action"):
         return hit["action"]
+    if hit.get("usual_action"):
+        return hit["usual_action"]
     topic_actions = hit.get("topic_actions") or []
     if topic_actions:
         return topic_actions[0].get("action")
     return None
+
+
+def _needs_review(
+    *,
+    top: dict[str, Any],
+    incoming: Any,
+    matched_topic: str,
+    matched_normalcy: str,
+    suggested_action: str | None,
+) -> bool:
+    topic_not_confident = incoming.topic == "general" or matched_topic != incoming.topic
+    missing_facts = matched_normalcy == "unknown" or not suggested_action
+    low_score = top["score"] < _MIN_CONFIDENCE
+    return topic_not_confident or missing_facts or low_score
 
 
 def _select_hit(hits: list[dict[str, Any]], incoming: Any) -> dict[str, Any]:
@@ -263,11 +279,13 @@ async def drchrono_inbox_draft_reply(
         ),
         "action": suggested_action,
     }
-    topic_confident = incoming.topic != "general" and matched_topic == incoming.topic
-    action_confident = bool(suggested_action)
-    needs_review = not (
-        topic_confident and action_confident and matched_normalcy != "unknown"
-    ) and (matched_topic == "general" or top["score"] < _MIN_CONFIDENCE)
+    needs_review = _needs_review(
+        top=top,
+        incoming=incoming,
+        matched_topic=matched_topic,
+        matched_normalcy=matched_normalcy,
+        suggested_action=suggested_action,
+    )
     exemplar_hits = _exemplar_hits(hits, top, top_k)
     return {
         "matched": {
